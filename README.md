@@ -25,7 +25,7 @@ The controller converts **pipelined master transactions** into **non-pipelined t
 
 | Side            | Protocol                    |
 | --------------- | --------------------------- |
-| Master side     | AHB-lite–style (simplified) |
+| Master side     | AHB-like–style (simplified) |
 | Peripheral side | AMBA APB (APB3-style)       |
 
 ---
