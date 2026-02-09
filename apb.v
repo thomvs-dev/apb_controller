@@ -20,14 +20,14 @@ module apb_controller(
     output reg [31:0] paddr
 );
 
-parameter st_idle     = 3'b000,
-          st_wait     = 3'b001,
-          st_write    = 3'b010,
-          st_writep   = 3'b011,
+parameter st_idle = 3'b000,
+          st_wait = 3'b001,
+          st_write = 3'b010,
+          st_writep = 3'b011,
           st_wenablep = 3'b100,
-          st_wenable  = 3'b101,
-          st_read     = 3'b110,
-          st_renable  = 3'b111;
+          st_wenable = 3'b101,
+          st_read = 3'b110,
+          st_renable = 3'b111;
 
 reg [2:0] state, next_state;
 reg [31:0] paddr_temp, pwdata_temp;
@@ -73,7 +73,7 @@ always @(*) begin
                 next_state = st_writep;
             else if(~hwritereg)
                 next_state = st_read;
-            else if(~valid)
+            else if(valid==1'b0)
                 next_state = st_write;
             else
                 next_state = st_wenablep;
@@ -82,13 +82,13 @@ always @(*) begin
         st_wenable: begin
             if((valid==1'b1) && ~hwrite)
                 next_state = st_read;
-            else if(~valid)
+            else if(valid==1'b0)
                 next_state = st_idle;
             else
                 next_state = st_wenable;
         end
 
-        st_read:     next_state = st_renable;
+        st_read: next_state = st_renable;
 
         st_renable: begin
             if((valid==1'b1) && ~hwrite)
@@ -106,11 +106,11 @@ always @(*) begin
 end
 
 always @(*) begin
-    paddr_temp      = 32'd0;
-    pwdata_temp     = 32'd0;
-    penable_temp    = 1'b0;
-    pwrite_temp     = 1'b0;
-    pselx_temp      = 3'd0;
+    paddr_temp = 32'd0;
+    pwdata_temp = 32'd0;
+    penable_temp = 1'b0;
+    pwrite_temp = 1'b0;
+    pselx_temp = 3'd0;
     hreadyout_temp  = 1'b1;
 
     case(state)
