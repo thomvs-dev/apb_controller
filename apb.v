@@ -44,16 +44,16 @@ end
 always @(*) begin
     case(state)
         st_idle: begin
-            if(valid && hwrite)
+            if(valid==1'b1 && hwrite==1'b1)
                 next_state = st_wait;
-            else if(valid && ~hwrite)
+            else if(valid==1'b1 && hwrite==1'b0)
                 next_state = st_read;
             else
                 next_state = st_idle;
         end
 
         st_wait: begin
-            if(valid)
+            if(valid==1'b1)
                 next_state = st_writep;
             else
                 next_state = st_write;
@@ -62,14 +62,14 @@ always @(*) begin
         st_writep:   next_state = st_wenablep;
 
         st_write: begin
-            if(valid)
+            if(valid==1'b1)
                 next_state = st_wenablep;
             else
                 next_state = st_wenable;
         end
 
         st_wenablep: begin
-            if(valid && hwritereg)
+            if((valid==1'b1) && hwritereg)
                 next_state = st_writep;
             else if(~hwritereg)
                 next_state = st_read;
@@ -80,7 +80,7 @@ always @(*) begin
         end
 
         st_wenable: begin
-            if(valid && ~hwrite)
+            if((valid==1'b1) && ~hwrite)
                 next_state = st_read;
             else if(~valid)
                 next_state = st_idle;
@@ -91,9 +91,9 @@ always @(*) begin
         st_read:     next_state = st_renable;
 
         st_renable: begin
-            if(valid && ~hwrite)
+            if((valid==1'b1) && ~hwrite)
                 next_state = st_read;
-            else if(valid && hwrite)
+            else if((valid==1'b1) && hwrite)
                 next_state = st_wait;
             else if(~valid)
                 next_state = st_idle;
@@ -137,18 +137,18 @@ end
 
 always @(posedge hclk) begin
     if(!hresetn) begin
-        paddr     <= 0;
-        pwdata    <= 0;
-        penable   <= 0;
-        pwrite    <= 0;
-        pselx     <= 0;
+        paddr <= 0;
+        pwdata <= 0;
+        penable <= 0;
+        pwrite <= 0;
+        pselx <= 0;
         hreadyout <= 1;
     end else begin
-        paddr     <= paddr_temp;
-        pwdata    <= pwdata_temp;
-        penable   <= penable_temp;
-        pwrite    <= pwrite_temp;
-        pselx     <= pselx_temp;
+        paddr <= paddr_temp;
+        pwdata <= pwdata_temp;
+        penable <= penable_temp;
+        pwrite <= pwrite_temp;
+        pselx <= pselx_temp;
         hreadyout <= hreadyout_temp;
     end
 end
