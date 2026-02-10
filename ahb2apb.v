@@ -1,4 +1,4 @@
-module apb_controller(
+module bridge(
   input hclk, hresetn, hselapb, hwrite,
   input [1:0] htrans,
   input [31:0] haddr,
