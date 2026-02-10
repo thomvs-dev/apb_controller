@@ -194,3 +194,130 @@ To modernize this controller for production use, consider adding:
 
 
 ---
+
+* Supports **AHB read and write transactions**
+* Implements **APB two-phase protocol**:
+
+  * SETUP phase
+  * ENABLE phase
+* Handles **back-to-back transfers**
+* Proper **HREADY-based stalling**
+* Active-low reset (`hresetn`)
+* Clean separation of:
+
+  * State register
+  * FSM combinational logic
+  * AHB signal validation
+
+---
+
+## AHB to APB Operation
+
+### AHB Side
+
+* Valid transfer detected when:
+
+  * `HSELAPB = 1`
+  * `HTRANS = NONSEQ (2'b10)` or `SEQ (2'b11)`
+* `HREADY` is deasserted during APB access
+* `HRDATA` is returned for read operations
+* `HRESP` is always **OKAY** (`0`) since APB does not support error signaling
+
+### APB Side
+
+* Two-cycle transfer:
+
+  1. **SETUP**: `PSEL=1`, `PENABLE=0`
+  2. **ENABLE**: `PSEL=1`, `PENABLE=1`
+* Address and data are latched from AHB before APB access
+
+---
+
+## FSM Description
+
+The bridge uses an **8-state FSM** to manage pipelined AHB requests and APB timing.
+
+| State      | Description                     |
+| ---------- | ------------------------------- |
+| `idle`     | No active transfer              |
+| `read`     | APB read setup phase            |
+| `renable`  | APB read enable phase           |
+| `wwait`    | Wait state for write pipelining |
+| `write`    | APB write setup                 |
+| `write_p`  | Pipelined write setup           |
+| `wenable`  | APB write enable                |
+| `wenablep` | Pipelined write enable          |
+
+---
+
+## Reset Behavior
+
+* Active-low reset (`hresetn`)
+* On reset:
+
+  * FSM enters `idle`
+  * APB signals deasserted
+  * `HREADY = 1`
+
+---
+
+## Testbench Description
+
+The testbench (`bridge_tb.v`) provides:
+
+* Clock generation (50 MHz)
+* Proper reset sequencing
+* Directed AHB read transaction
+* Directed AHB write transaction
+* APB read data modeling via `PRDATA`
+
+### Test Scenarios
+
+1. **AHB Read**
+
+   * AHB master issues NONSEQ read
+   * Bridge generates APB SETUP + ENABLE
+   * `PRDATA` returned and captured in `HRDATA`
+2. **AHB Write**
+
+   * AHB master issues NONSEQ write
+   * Address and data transferred to APB
+
+---
+
+## How to Simulate
+
+### Using ModelSim / QuestaSim
+
+```tcl
+vlog bridge_rtl.v bridge_tb.v
+vsim bridge_tb
+run -all
+```
+
+### Using Icarus Verilog
+
+```bash
+iverilog bridge_rtl.v bridge_tb.v -o sim.out
+vvp sim.out
+```
+
+---
+
+## Expected Waveform Behavior
+
+* `HREADY` goes low during APB access
+* `PSEL` asserted one cycle before `PENABLE`
+* `HRDATA` valid during read enable phase
+* `PWRITE` asserted only for write transactions
+
+---
+
+## Limitations
+
+* Single APB slave
+* No `PREADY` support (assumes zero-wait APB)
+* No error response handling (`HRESP` always OKAY)
+
+---
+
