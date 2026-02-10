@@ -11,7 +11,7 @@ module bridge_tb();
   wire [31:0] paddr, pwdata;
 
 
-  bridge_rtl dut (
+  bridge dut (
     hclk, hresetn, hselapb, hwrite,
     htrans, haddr,
     hwdata,
