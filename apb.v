@@ -1,156 +1,157 @@
 module apb_controller(
-    input hclk,
-    input hresetn,
-    input valid,
-    input hwrite,
-    input hwritereg,
-    input [31:0] haddr1,
-    input [31:0] haddr2,
-    input [31:0] hwdata1,
-    input [31:0] hwdata2,
-    input [31:0] haddr,
-    input [31:0] hwdata,
-    input [2:0] tempselx,
+  input hclk, hresetn, hselapb, hwrite,
+  input [1:0] htrans,
+  input [31:0] haddr,
+  input [31:0] hwdata,
+  input [31:0] prdata,
 
-    output reg pwrite,
-    output reg penable,
-    output reg [2:0] pselx,
-    output reg hreadyout,
-    output reg [31:0] pwdata,
-    output reg [31:0] paddr
+  output reg [31:0] paddr,
+  output reg [31:0] pwdata,
+  output reg psel, penable, pwrite,
+  output reg hresp, hready,
+  output reg [31:0] hrdata
 );
 
-parameter st_idle = 3'b000,
-          st_wait = 3'b001,
-          st_write = 3'b010,
-          st_writep = 3'b011,
-          st_wenablep = 3'b100,
-          st_wenable = 3'b101,
-          st_read = 3'b110,
-          st_renable = 3'b111;
+  parameter idle = 3'b000;
+  parameter read = 3'b001;
+  parameter wwait = 3'b010;
+  parameter write = 3'b011;
+  parameter write_p = 3'b100;
+  parameter wenable = 3'b101;
+  parameter wenablep = 3'b110;
+  parameter renable = 3'b111;
 
-reg [2:0] state, next_state;
-reg [31:0] paddr_temp, pwdata_temp;
-reg penable_temp, pwrite_temp, hreadyout_temp;
-reg [2:0] pselx_temp;
+  reg [31:0] haddr_temp, hwdata_temp;
+  reg [2:0]  present_state, next_state;
+  reg  valid, hwrite_temp;
 
-always @(posedge hclk) begin
-    if(!hresetn)
-        state <= st_idle;
+
+  always @(*) begin
+    if (hselapb == 1'b1 && (htrans == 2'b10 || htrans == 2'b11))
+      valid = 1'b1;
     else
-        state <= next_state;
-end
+      valid = 1'b0;
+  end
 
-always @(*) begin
-    case(state)
-        st_idle: begin
-            if(valid==1'b1 && hwrite==1'b1)
-                next_state = st_wait;
-            else if(valid==1'b1 && hwrite==1'b0)
-                next_state = st_read;
-            else
-                next_state = st_idle;
-        end
 
-        st_wait: begin
-            if(valid==1'b1)
-                next_state = st_writep;
-            else
-                next_state = st_write;
-        end
+  always @(posedge hclk or negedge hresetn) begin
+    if (!hresetn)
+      present_state <= idle;
+    else
+      present_state <= next_state;
+  end
 
-        st_writep:   next_state = st_wenablep;
 
-        st_write: begin
-            if(valid==1'b1)
-                next_state = st_wenablep;
-            else
-                next_state = st_wenable;
-        end
+  always @(*)
+    begin
+      psel = 1'b0;
+      penable = 1'b0;
+      pwrite = 1'b0;
+      paddr = 32'b0;
+      pwdata = 32'b0;
+      hready = 1'b1;
+      hresp = 1'b0;
+      hrdata = 32'b0;
+      next_state = present_state;
 
-        st_wenablep: begin
-            if((valid==1'b1) && hwritereg)
-                next_state = st_writep;
-            else if(~hwritereg)
-                next_state = st_read;
-            else if(valid==1'b0)
-                next_state = st_write;
-            else
-                next_state = st_wenablep;
-        end
+    case (present_state)
 
-        st_wenable: begin
-            if((valid==1'b1) && ~hwrite)
-                next_state = st_read;
-            else if(valid==1'b0)
-                next_state = st_idle;
-            else
-                next_state = st_wenable;
-        end
+      idle: begin
+        if (valid == 1'b0)
+          next_state = idle;
+        else if (valid == 1'b1 && hwrite == 1'b0)
+          next_state = read;
+        else if (valid == 1'b1 && hwrite == 1'b1)
+          next_state = wwait;
+      end
 
-        st_read: next_state = st_renable;
+      read: begin
+        psel = 1'b1;
+        paddr = haddr;
+        pwrite = 1'b0;
+        penable = 1'b0;
+        hready = 1'b0;
+        next_state = renable;
+      end
 
-        st_renable: begin
-            if((valid==1'b1) && ~hwrite)
-                next_state = st_read;
-            else if((valid==1'b1) && hwrite)
-                next_state = st_wait;
-            else if(~valid)
-                next_state = st_idle;
-            else
-                next_state = st_renable;
-        end
+      renable: begin
+        penable = 1'b1;
+        hrdata = prdata;
+        hready = 1'b1;
 
-        default: next_state = st_idle;
+        if (valid == 1'b1 && hwrite == 1'b0)
+          next_state = read;
+        else if (valid == 1'b1 && hwrite == 1'b1)
+          next_state = wwait;
+        else if (valid == 1'b0)
+          next_state = idle;
+      end
+
+      wwait: begin
+        penable = 1'b0;
+        haddr_temp = haddr;
+        hwdata_temp = hwdata;
+        hwrite_temp = hwrite;
+
+        if (valid == 1'b0)
+          next_state = write;
+        else
+          next_state = write_p;
+      end
+
+      write: begin
+        psel = 1'b1;
+        paddr = haddr_temp;
+        pwdata = hwdata_temp;
+        pwrite = 1'b1;
+        penable = 1'b0;
+        hready = 1'b0;
+
+        if (valid == 1'b0)
+          next_state = wenable;
+        else
+          next_state = wenablep;
+      end
+
+      write_p: begin
+        psel = 1'b1;
+        paddr = haddr_temp;
+        pwdata = hwdata_temp;
+        pwrite = 1'b1;
+        penable = 1'b0;
+        hready = 1'b0;
+        hwrite_temp = hwrite;
+
+        next_state = wenablep;
+      end
+
+      wenable: begin
+        penable = 1'b1;
+        hready = 1'b1;
+
+        if (valid == 1'b1 && hwrite == 1'b0)
+          next_state = read;
+        else if (valid == 1'b1 && hwrite == 1'b1)
+          next_state = wwait;
+        else
+          next_state = idle;
+      end
+
+      wenablep: begin
+        penable = 1'b1;
+        hready = 1'b1;
+
+        if (valid == 1'b0 && hwrite == 1'b1)
+          next_state = write;
+        else if (valid == 1'b1 && hwrite == 1'b1)
+          next_state = write_p;
+        else
+          next_state = read;
+      end
+
+      default: next_state = idle;
+
     endcase
-end
-
-always @(*) begin
-    paddr_temp = 32'd0;
-    pwdata_temp = 32'd0;
-    penable_temp = 1'b0;
-    pwrite_temp = 1'b0;
-    pselx_temp = 3'd0;
-    hreadyout_temp  = 1'b1;
-
-    case(state)
-        st_wait: begin
-            paddr_temp = haddr1;
-            pwdata_temp = hwdata1;
-            pwrite_temp = 1'b1;
-            pselx_temp = tempselx;
-            hreadyout_temp = 1'b0;
-        end
-
-        st_wenable: begin
-            paddr_temp = haddr2;
-            pwdata_temp = hwdata2;
-            hreadyout_temp = 1'b0;
-        end
-
-        st_read: begin
-            paddr_temp = haddr;
-            pwrite_temp = 1'b0;
-        end
-    endcase
-end
-
-always @(posedge hclk) begin
-    if(!hresetn) begin
-        paddr <= 0;
-        pwdata <= 0;
-        penable <= 0;
-        pwrite <= 0;
-        pselx <= 0;
-        hreadyout <= 1;
-    end else begin
-        paddr <= paddr_temp;
-        pwdata <= pwdata_temp;
-        penable <= penable_temp;
-        pwrite <= pwrite_temp;
-        pselx <= pselx_temp;
-        hreadyout <= hreadyout_temp;
-    end
-end
+  end
 
 endmodule
